@@ -218,6 +218,9 @@ class StandarMutu extends Component
         $this->showLembagaDropdown = false;
         $this->showStandarDropdown = false;
         
+        // Reset file upload
+        $this->bukti_file = null;
+        
         $this->isEditMode = false;
         $this->standarMutuId = null;
         $this->showModal = false;
@@ -350,19 +353,46 @@ class StandarMutu extends Component
                 'bukti_file.max' => 'Ukuran file maksimal 5MB.',
             ];
         } elseif ($this->canUploadAndCommentAuditee()) {
-            // Auditee can only upload bukti dokumen and add komentar auditee
-            $validationRules = [
-                'form.bukti_dokumen' => ['nullable', 'string', 'max:500'],
-                'form.komentar_auditee' => ['nullable', 'string'],
-                'bukti_file' => ['nullable', 'file', 'mimes:pdf', 'max:5120'],
-            ];
-            $validationMessages = [
-                'form.bukti_dokumen.max' => 'Bukti dokumen maksimal 500 karakter.',
-                'form.komentar_auditee.string' => 'Komentar auditee harus berupa teks.',
-                'bukti_file.file' => 'File yang diupload harus berupa file.',
-                'bukti_file.mimes' => 'File yang diupload harus berupa PDF.',
-                'bukti_file.max' => 'Ukuran file maksimal 5MB.',
-            ];
+            // Auditee can upload bukti dokumen and add komentar auditee
+            // When creating new records, they need to provide required fields
+            if (!$this->isEditMode) {
+                // Creating new record - require basic fields
+                $validationRules = [
+                    'form.tahun_id' => ['required', 'exists:tahun,id'],
+                    'form.lembaga_akreditasi_id' => ['required', 'exists:lembaga_akreditasi,id'],
+                    'form.standar_nasional_id' => ['required', 'exists:standar_nasional,id'],
+                    'form.bukti_dokumen' => ['nullable', 'string', 'max:500'],
+                    'form.komentar_auditee' => ['nullable', 'string'],
+                    'bukti_file' => ['nullable', 'file', 'mimes:pdf', 'max:5120'],
+                ];
+                $validationMessages = [
+                    'form.tahun_id.required' => 'Tahun harus dipilih.',
+                    'form.tahun_id.exists' => 'Tahun yang dipilih tidak valid.',
+                    'form.lembaga_akreditasi_id.required' => 'Lembaga Akreditasi harus dipilih.',
+                    'form.lembaga_akreditasi_id.exists' => 'Lembaga Akreditasi yang dipilih tidak valid.',
+                    'form.standar_nasional_id.required' => 'Standar Nasional harus dipilih.',
+                    'form.standar_nasional_id.exists' => 'Standar Nasional yang dipilih tidak valid.',
+                    'form.bukti_dokumen.max' => 'Bukti dokumen maksimal 500 karakter.',
+                    'form.komentar_auditee.string' => 'Komentar auditee harus berupa teks.',
+                    'bukti_file.file' => 'File yang diupload harus berupa file.',
+                    'bukti_file.mimes' => 'File yang diupload harus berupa PDF.',
+                    'bukti_file.max' => 'Ukuran file maksimal 5MB.',
+                ];
+            } else {
+                // Editing existing record - only validate fields they can edit
+                $validationRules = [
+                    'form.bukti_dokumen' => ['nullable', 'string', 'max:500'],
+                    'form.komentar_auditee' => ['nullable', 'string'],
+                    'bukti_file' => ['nullable', 'file', 'mimes:pdf', 'max:5120'],
+                ];
+                $validationMessages = [
+                    'form.bukti_dokumen.max' => 'Bukti dokumen maksimal 500 karakter.',
+                    'form.komentar_auditee.string' => 'Komentar auditee harus berupa teks.',
+                    'bukti_file.file' => 'File yang diupload harus berupa file.',
+                    'bukti_file.mimes' => 'File yang diupload harus berupa PDF.',
+                    'bukti_file.max' => 'Ukuran file maksimal 5MB.',
+                ];
+            }
         } elseif ($this->canCommentAuditor()) {
             // Auditor can only add komentar auditor
             $validationRules = [
@@ -450,14 +480,17 @@ class StandarMutu extends Component
                     session()->flash('success', 'Standar Mutu berhasil ditambahkan!');
                 }
             } elseif ($this->canUploadAndCommentAuditee()) {
-                // Auditee can only update bukti dokumen and komentar auditee
+                // Auditee can create new records or update existing ones with bukti dokumen and komentar auditee
                 if ($this->isEditMode) {
                     $standar = StandarMutuModel::findOrFail($this->standarMutuId);
                     $updateData = [];
                     
+                    // Update bukti_dokumen if file was uploaded or link was provided
                     if ($buktiDokumen !== null) {
                         $updateData['bukti_dokumen'] = $buktiDokumen;
                     }
+                    
+                    // Update komentar_auditee if provided
                     if (isset($validated['form']['komentar_auditee'])) {
                         $updateData['komentar_auditee'] = $validated['form']['komentar_auditee'];
                     }
@@ -465,10 +498,38 @@ class StandarMutu extends Component
                     if (!empty($updateData)) {
                         $standar->update($updateData);
                         session()->flash('success', 'Bukti dokumen dan komentar auditee berhasil diperbarui!');
+                    } else {
+                        session()->flash('info', 'Tidak ada perubahan yang disimpan.');
                     }
                 } else {
-                    session()->flash('error', 'Auditee hanya dapat mengedit data yang sudah ada.');
-                    return;
+                    // Allow auditee to create new records, but only with minimal required data
+                    // They need to provide at least bukti_dokumen (file or link)
+                    if (empty($buktiDokumen)) {
+                        session()->flash('error', 'Auditee harus mengunggah bukti dokumen atau menyediakan link Google Drive.');
+                        return;
+                    }
+                    
+                    // Create new record with default values for required fields
+                    // Note: This assumes that tahun_id, lembaga_akreditasi_id, and standar_nasional_id 
+                    // are provided in the form even for auditee users
+                    if (empty($validated['form']['tahun_id']) || 
+                        empty($validated['form']['lembaga_akreditasi_id']) || 
+                        empty($validated['form']['standar_nasional_id'])) {
+                        session()->flash('error', 'Data tahun, lembaga akreditasi, dan standar nasional harus dipilih.');
+                        return;
+                    }
+                    
+                    StandarMutuModel::create([
+                        'tahun_id' => $validated['form']['tahun_id'],
+                        'lembaga_akreditasi_id' => $validated['form']['lembaga_akreditasi_id'],
+                        'standar_nasional_id' => $validated['form']['standar_nasional_id'],
+                        'status' => 'draft', // Default status for auditee
+                        'nilai_mutu' => null, // Auditee cannot set nilai_mutu
+                        'bukti_dokumen' => $buktiDokumen,
+                        'komentar_auditee' => $validated['form']['komentar_auditee'] ?? null,
+                        'komentar_auditor' => null,
+                    ]);
+                    session()->flash('success', 'Standar Mutu berhasil ditambahkan dengan bukti dokumen!');
                 }
             } elseif ($this->canCommentAuditor()) {
                 // Auditor can only update komentar auditor
