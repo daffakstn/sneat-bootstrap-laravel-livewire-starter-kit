@@ -65,11 +65,38 @@ class SubStandarMutu extends Component
 
     public function mount($standarMutu)
     {
-        if (!Auth::user()->hasRole('Admin')) {
+        // Check if user has any of the allowed roles
+        if (!Auth::user()->hasAnyRole(['Admin', 'Auditee', 'Auditor', 'Pimpinan'])) {
             abort(403, 'Unauthorized action.');
         }
         $this->standarMutuId = $standarMutu;
         $this->resetForm();
+    }
+
+    // Add helper methods to check user roles
+    public function canFullAccess()
+    {
+        return Auth::user()->hasRole('Admin');
+    }
+
+    public function isReadOnly()
+    {
+        return Auth::user()->hasAnyRole(['Auditee', 'Auditor', 'Pimpinan']);
+    }
+
+    public function canEdit()
+    {
+        return $this->canFullAccess();
+    }
+
+    public function canDelete()
+    {
+        return $this->canFullAccess();
+    }
+
+    public function canCreate()
+    {
+        return $this->canFullAccess();
     }
 
     public function updatedProdiSearch()
@@ -145,6 +172,9 @@ class SubStandarMutu extends Component
 
     public function create()
     {
+        if (!$this->canCreate()) {
+            abort(403, 'Unauthorized action.');
+        }
         $this->resetForm();
         $this->showModal = true;
         $this->dispatch('show-modal');
@@ -152,6 +182,10 @@ class SubStandarMutu extends Component
 
     public function edit($id)
     {
+        if (!$this->canEdit()) {
+            abort(403, 'Unauthorized action.');
+        }
+        
         $subStandar = SubStandarMutuModel::with('prodi')->findOrFail($id);
         $this->form = [
             'sub_standar' => $subStandar->sub_standar,
@@ -180,6 +214,9 @@ class SubStandarMutu extends Component
 
     public function confirmDelete($id)
     {
+        if (!$this->canDelete()) {
+            abort(403, 'Unauthorized action.');
+        }
         $this->subStandarToDelete = $id;
         $this->showDeleteModal = true;
         $this->dispatch('show-delete-modal');
@@ -194,6 +231,10 @@ class SubStandarMutu extends Component
 
     public function save()
     {
+        if (!$this->canEdit()) {
+            abort(403, 'Unauthorized action.');
+        }
+        
         // Validate that at least one prodi is selected
         if (empty($this->selectedProdis)) {
             session()->flash('error', 'Minimal satu Program Studi harus dipilih.');
@@ -281,6 +322,10 @@ class SubStandarMutu extends Component
 
     public function delete()
     {
+        if (!$this->canDelete()) {
+            abort(403, 'Unauthorized action.');
+        }
+        
         try {
             $subStandar = SubStandarMutuModel::findOrFail($this->subStandarToDelete);
             $subStandar->delete();
@@ -338,6 +383,12 @@ class SubStandarMutu extends Component
             'showProdiDropdown' => $this->showProdiDropdown,
             'selectedProdis' => $this->selectedProdis,
             'selectedProdiNames' => $this->selectedProdiNames,
+            // Role-based access control
+            'canFullAccess' => $this->canFullAccess(),
+            'isReadOnly' => $this->isReadOnly(),
+            'canEdit' => $this->canEdit(),
+            'canDelete' => $this->canDelete(),
+            'canCreate' => $this->canCreate(),
         ])->layout('components.layouts.app', ['title' => __('Sub Standar Mutu')]);
     }
 }

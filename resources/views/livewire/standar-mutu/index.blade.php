@@ -16,6 +16,23 @@
             </div>
         @endif
 
+        @if($isReadOnly)
+            <div class="alert alert-info" role="alert">
+                <i class="bx bx-info-circle me-2"></i>
+                <strong>{{ __('Informasi:') }}</strong> {{ __('Anda hanya memiliki akses untuk melihat data.') }}
+            </div>
+        @elseif($canUploadAndCommentAuditee)
+            <div class="alert alert-info" role="alert">
+                <i class="bx bx-info-circle me-2"></i>
+                <strong>{{ __('Informasi:') }}</strong> {{ __('Anda dapat mengedit bukti dokumen dan komentar auditee.') }}
+            </div>
+        @elseif($canCommentAuditor)
+            <div class="alert alert-info" role="alert">
+                <i class="bx bx-info-circle me-2"></i>
+                <strong>{{ __('Informasi:') }}</strong> {{ __('Anda dapat mengedit komentar auditor.') }}
+            </div>
+        @endif
+
         <!-- Modal Form -->
         <div class="modal fade" id="standarMutuModal" tabindex="-1" wire:ignore.self>
             <div class="modal-dialog modal-lg">
@@ -40,6 +57,7 @@
                             <div class="row g-3 mb-4">
                                 
                                 <!-- Tahun Field -->
+                                @if($canFullAccess)
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="tahun_id" class="form-label fw-medium">{{ __('Tahun') }} <span class="text-danger">*</span></label>
@@ -69,8 +87,10 @@
                                         @enderror
                                     </div>
                                 </div>
+                                @endif
 
                                 <!-- Lembaga Akreditasi Field -->
+                                @if($canFullAccess)
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="lembaga_akreditasi_id" class="form-label fw-medium">{{ __('Lembaga Akreditasi') }} <span class="text-danger">*</span></label>
@@ -100,8 +120,10 @@
                                         @enderror
                                     </div>
                                 </div>
+                                @endif
 
                                 <!-- Standar Nasional Field -->
+                                @if($canFullAccess)
                                 <div class="col-12">
                                     <div class="mb-3">
                                         <label for="standar_nasional_id" class="form-label fw-medium">{{ __('Standar Nasional') }} <span class="text-danger">*</span></label>
@@ -134,9 +156,11 @@
                                         @enderror
                                     </div>
                                 </div>
+                                @endif
                             </div>
 
                             <!-- Status dan Nilai -->
+                            @if($canFullAccess)
                             <div class="row g-3 mb-4">
                                 
                                 <!-- Status Field -->
@@ -193,8 +217,10 @@
                                     </div>
                                 </div>
                             </div>
+                            @endif
 
                             <!-- Bukti Dokumen -->
+                            @if($canFullAccess || $canUploadAndCommentAuditee)
                             <div class="row g-3 mb-4">
                                 
                                 <div class="col-12">
@@ -226,11 +252,13 @@
                                     </div>
                                 </div>
                             </div>
+                            @endif
 
                             <!-- Komentar -->
                             <div class="row g-3">
                                 
                                 <!-- Komentar Auditee Field -->
+                                @if($canFullAccess || $canUploadAndCommentAuditee)
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="komentar_auditee" class="form-label fw-medium">{{ __('Komentar Auditee') }}</label>
@@ -243,8 +271,10 @@
                                         @enderror
                                     </div>
                                 </div>
+                                @endif
 
                                 <!-- Komentar Auditor Field -->
+                                @if($canFullAccess || $canCommentAuditor)
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="komentar_auditor" class="form-label fw-medium">{{ __('Komentar Auditor') }}</label>
@@ -257,6 +287,7 @@
                                         @enderror
                                     </div>
                                 </div>
+                                @endif
                             </div>
                         </form>
                     </div>
@@ -450,12 +481,14 @@
                         <i class="bx bx-search position-absolute top-50 end-0 translate-middle-y me-3"></i>
                     </div>
                     <!-- Add Button -->
+                    @if($canCreate)
                     <button class="btn btn-primary" wire:click="create">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-circle me-2" viewBox="0 0 16 16">
                             <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
                             <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
                         </svg>{{ __('Tambah Standar Mutu') }}
                     </button>
+                    @endif
                 </div>
             </div>
             <div class="card-body">
@@ -522,12 +555,16 @@
                                             <button class="btn btn-sm btn-info" title="{{ __('Sub Standar') }}" onclick="window.location.href='{{ route('standar-mutu.sub-standar', $standar->id) }}'">
                                                 <i class="bx bx-list-ul"></i>
                                             </button>
+                                            @if($canEdit || $canUploadAndCommentAuditee || $canCommentAuditor)
                                             <button class="btn btn-sm btn-primary" wire:click="edit({{ $standar->id }})" title="{{ __('Edit') }}">
                                                 <i class="bx bx-edit-alt"></i>
                                             </button>
+                                            @endif
+                                            @if($canDelete)
                                             <button class="btn btn-sm btn-danger" wire:click="confirmDelete({{ $standar->id }})" title="{{ __('Hapus') }}">
                                                 <i class="bx bx-trash"></i>
                                             </button>
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>

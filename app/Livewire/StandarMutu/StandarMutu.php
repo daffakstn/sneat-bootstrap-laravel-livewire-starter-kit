@@ -51,10 +51,47 @@ class StandarMutu extends Component
 
     public function mount()
     {
-        if (!Auth::user()->hasRole('Admin')) {
+        // Check if user has any of the allowed roles
+        if (!Auth::user()->hasAnyRole(['Admin', 'Auditee', 'Auditor', 'Pimpinan'])) {
             abort(403, 'Unauthorized action.');
         }
         $this->resetForm();
+    }
+
+    // Add helper methods to check user roles
+    public function canFullAccess()
+    {
+        return Auth::user()->hasRole('Admin');
+    }
+
+    public function canUploadAndCommentAuditee()
+    {
+        return Auth::user()->hasRole('Auditee');
+    }
+
+    public function canCommentAuditor()
+    {
+        return Auth::user()->hasRole('Auditor');
+    }
+
+    public function isReadOnly()
+    {
+        return Auth::user()->hasRole('Pimpinan');
+    }
+
+    public function canEdit()
+    {
+        return $this->canFullAccess();
+    }
+
+    public function canDelete()
+    {
+        return $this->canFullAccess();
+    }
+
+    public function canCreate()
+    {
+        return $this->canFullAccess();
     }
 
     public function updatedSearch()
@@ -194,6 +231,9 @@ class StandarMutu extends Component
 
     public function create()
     {
+        if (!$this->canCreate()) {
+            abort(403, 'Unauthorized action.');
+        }
         $this->resetForm();
         $this->showModal = true;
         $this->dispatch('show-modal');
@@ -201,6 +241,11 @@ class StandarMutu extends Component
 
     public function edit($id)
     {
+        // Check if user can edit or if they can only edit specific fields
+        if (!$this->canEdit() && !$this->canUploadAndCommentAuditee() && !$this->canCommentAuditor()) {
+            abort(403, 'Unauthorized action.');
+        }
+        
         $standar = StandarMutuModel::with(['tahun', 'lembagaAkreditasi', 'standarNasional.parent.parent'])->findOrFail($id);
         
         $this->form = [
@@ -236,6 +281,9 @@ class StandarMutu extends Component
 
     public function confirmDelete($id)
     {
+        if (!$this->canDelete()) {
+            abort(403, 'Unauthorized action.');
+        }
         $this->standarToDelete = $id;
         $this->showDeleteModal = true;
         $this->dispatch('show-delete-modal');
@@ -264,105 +312,178 @@ class StandarMutu extends Component
 
     public function save()
     {
-        $validated = $this->validate([
-            'form.tahun_id' => ['required', 'exists:tahun,id'],
-            'form.lembaga_akreditasi_id' => ['required', 'exists:lembaga_akreditasi,id'],
-            'form.standar_nasional_id' => ['required', 'exists:standar_nasional,id'],
-            'form.status' => ['required', 'in:aktif,draft,nonaktif'],
-            'form.nilai_mutu' => ['nullable', 'numeric', 'min:0', 'max:4', 'regex:/^\d+(\.\d{1,2})?$/'],
-            'form.bukti_dokumen' => ['nullable', 'string', 'max:500'],
-            'form.komentar_auditee' => ['nullable', 'string'],
-            'form.komentar_auditor' => ['nullable', 'string'],
-            'bukti_file' => ['nullable', 'file', 'mimes:pdf', 'max:5120'], // 5MB max
-        ], [
-            'form.tahun_id.required' => 'Tahun harus dipilih.',
-            'form.tahun_id.exists' => 'Tahun yang dipilih tidak valid.',
-            'form.lembaga_akreditasi_id.required' => 'Lembaga Akreditasi harus dipilih.',
-            'form.lembaga_akreditasi_id.exists' => 'Lembaga Akreditasi yang dipilih tidak valid.',
-            'form.standar_nasional_id.required' => 'Standar Nasional harus dipilih.',
-            'form.standar_nasional_id.exists' => 'Standar Nasional yang dipilih tidak valid.',
-            'form.status.required' => 'Status harus dipilih.',
-            'form.status.in' => 'Status yang dipilih tidak valid.',
-            'form.nilai_mutu.numeric' => 'Nilai mutu harus berupa angka.',
-            'form.nilai_mutu.min' => 'Nilai mutu minimal adalah 0.',
-            'form.nilai_mutu.max' => 'Nilai mutu maksimal adalah 4.',
-            'form.nilai_mutu.regex' => 'Nilai mutu maksimal 2 digit desimal.',
-            'form.bukti_dokumen.max' => 'Bukti dokumen maksimal 500 karakter.',
-            'form.komentar_auditee.string' => 'Komentar auditee harus berupa teks.',
-            'form.komentar_auditor.string' => 'Komentar auditor harus berupa teks.',
-            'bukti_file.file' => 'File yang diupload harus berupa file.',
-            'bukti_file.mimes' => 'File yang diupload harus berupa PDF.',
-            'bukti_file.max' => 'Ukuran file maksimal 5MB.',
-        ]);
+        // Define validation rules based on user role
+        $validationRules = [];
+        $validationMessages = [];
+
+        if ($this->canFullAccess()) {
+            // Admin has full access to all fields
+            $validationRules = [
+                'form.tahun_id' => ['required', 'exists:tahun,id'],
+                'form.lembaga_akreditasi_id' => ['required', 'exists:lembaga_akreditasi,id'],
+                'form.standar_nasional_id' => ['required', 'exists:standar_nasional,id'],
+                'form.status' => ['required', 'in:aktif,draft,nonaktif'],
+                'form.nilai_mutu' => ['nullable', 'numeric', 'min:0', 'max:4', 'regex:/^\d+(\.\d{1,2})?$/'],
+                'form.bukti_dokumen' => ['nullable', 'string', 'max:500'],
+                'form.komentar_auditee' => ['nullable', 'string'],
+                'form.komentar_auditor' => ['nullable', 'string'],
+                'bukti_file' => ['nullable', 'file', 'mimes:pdf', 'max:5120'],
+            ];
+            $validationMessages = [
+                'form.tahun_id.required' => 'Tahun harus dipilih.',
+                'form.tahun_id.exists' => 'Tahun yang dipilih tidak valid.',
+                'form.lembaga_akreditasi_id.required' => 'Lembaga Akreditasi harus dipilih.',
+                'form.lembaga_akreditasi_id.exists' => 'Lembaga Akreditasi yang dipilih tidak valid.',
+                'form.standar_nasional_id.required' => 'Standar Nasional harus dipilih.',
+                'form.standar_nasional_id.exists' => 'Standar Nasional yang dipilih tidak valid.',
+                'form.status.required' => 'Status harus dipilih.',
+                'form.status.in' => 'Status yang dipilih tidak valid.',
+                'form.nilai_mutu.numeric' => 'Nilai mutu harus berupa angka.',
+                'form.nilai_mutu.min' => 'Nilai mutu minimal adalah 0.',
+                'form.nilai_mutu.max' => 'Nilai mutu maksimal adalah 4.',
+                'form.nilai_mutu.regex' => 'Nilai mutu maksimal 2 digit desimal.',
+                'form.bukti_dokumen.max' => 'Bukti dokumen maksimal 500 karakter.',
+                'form.komentar_auditee.string' => 'Komentar auditee harus berupa teks.',
+                'form.komentar_auditor.string' => 'Komentar auditor harus berupa teks.',
+                'bukti_file.file' => 'File yang diupload harus berupa file.',
+                'bukti_file.mimes' => 'File yang diupload harus berupa PDF.',
+                'bukti_file.max' => 'Ukuran file maksimal 5MB.',
+            ];
+        } elseif ($this->canUploadAndCommentAuditee()) {
+            // Auditee can only upload bukti dokumen and add komentar auditee
+            $validationRules = [
+                'form.bukti_dokumen' => ['nullable', 'string', 'max:500'],
+                'form.komentar_auditee' => ['nullable', 'string'],
+                'bukti_file' => ['nullable', 'file', 'mimes:pdf', 'max:5120'],
+            ];
+            $validationMessages = [
+                'form.bukti_dokumen.max' => 'Bukti dokumen maksimal 500 karakter.',
+                'form.komentar_auditee.string' => 'Komentar auditee harus berupa teks.',
+                'bukti_file.file' => 'File yang diupload harus berupa file.',
+                'bukti_file.mimes' => 'File yang diupload harus berupa PDF.',
+                'bukti_file.max' => 'Ukuran file maksimal 5MB.',
+            ];
+        } elseif ($this->canCommentAuditor()) {
+            // Auditor can only add komentar auditor
+            $validationRules = [
+                'form.komentar_auditor' => ['nullable', 'string'],
+            ];
+            $validationMessages = [
+                'form.komentar_auditor.string' => 'Komentar auditor harus berupa teks.',
+            ];
+        } else {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $validated = $this->validate($validationRules, $validationMessages);
 
         try {
             // Handle file upload if provided
-            $buktiDokumen = $validated['form']['bukti_dokumen'];
+            $buktiDokumen = isset($validated['form']['bukti_dokumen']) ? $validated['form']['bukti_dokumen'] : null;
             if ($this->bukti_file) {
                 $fileName = time() . '_' . $this->bukti_file->getClientOriginalName();
                 $path = $this->bukti_file->storeAs('bukti-dokumen', $fileName, 'public');
                 $buktiDokumen = $path;
             }
             
-            // Validate that the selected standar_nasional_id is a Level 3 standard
-            $standarNasional = StandarNasional::findOrFail($validated['form']['standar_nasional_id']);
-            if ($standarNasional->level() !== 3) {
-                session()->flash('error', 'Hanya standar nasional level 3 yang dapat dipilih.');
-                return;
-            }
+            if ($this->canFullAccess()) {
+                // Admin can perform full CRUD operations
+                
+                // Validate that the selected standar_nasional_id is a Level 3 standard
+                $standarNasional = StandarNasional::findOrFail($validated['form']['standar_nasional_id']);
+                if ($standarNasional->level() !== 3) {
+                    session()->flash('error', 'Hanya standar nasional level 3 yang dapat dipilih.');
+                    return;
+                }
 
-            // Check for duplicate combinations
-            $duplicateQuery = StandarMutuModel::where('tahun_id', $validated['form']['tahun_id'])
-                ->where('lembaga_akreditasi_id', $validated['form']['lembaga_akreditasi_id'])
-                ->where('standar_nasional_id', $validated['form']['standar_nasional_id']);
-            
-            if ($this->isEditMode) {
-                $duplicateQuery->where('id', '!=', $this->standarMutuId);
-            }
-            
-            if ($duplicateQuery->exists()) {
-                session()->flash('error', 'Kombinasi data untuk standar mutu ini sudah ada.');
-                return;
-            }
-
-            // Validate status change to 'aktif'
-            if ($validated['form']['status'] === 'aktif') {
+                // Check for duplicate combinations
+                $duplicateQuery = StandarMutuModel::where('tahun_id', $validated['form']['tahun_id'])
+                    ->where('lembaga_akreditasi_id', $validated['form']['lembaga_akreditasi_id'])
+                    ->where('standar_nasional_id', $validated['form']['standar_nasional_id']);
+                
                 if ($this->isEditMode) {
-                    $standarMutu = StandarMutuModel::findOrFail($this->standarMutuId);
-                    if ($standarMutu->subStandars()->count() === 0) {
-                        session()->flash('error', 'Tidak dapat mengaktifkan standar tanpa sub-standar dan indikator.');
-                        return;
+                    $duplicateQuery->where('id', '!=', $this->standarMutuId);
+                }
+                
+                if ($duplicateQuery->exists()) {
+                    session()->flash('error', 'Kombinasi data untuk standar mutu ini sudah ada.');
+                    return;
+                }
+
+                // Validate status change to 'aktif'
+                if ($validated['form']['status'] === 'aktif') {
+                    if ($this->isEditMode) {
+                        $standarMutu = StandarMutuModel::findOrFail($this->standarMutuId);
+                        if ($standarMutu->subStandars()->count() === 0) {
+                            session()->flash('error', 'Tidak dapat mengaktifkan standar tanpa sub-standar dan indikator.');
+                            return;
+                        }
                     }
                 }
-            }
 
-            if ($this->isEditMode) {
-                // In edit mode, we only update the existing record
-                $standar = StandarMutuModel::findOrFail($this->standarMutuId);
-                $standar->update([
-                    'tahun_id' => $validated['form']['tahun_id'],
-                    'lembaga_akreditasi_id' => $validated['form']['lembaga_akreditasi_id'],
-                    'standar_nasional_id' => $validated['form']['standar_nasional_id'],
-                    'status' => $validated['form']['status'],
-                    'nilai_mutu' => $validated['form']['nilai_mutu'],
-                    'bukti_dokumen' => $buktiDokumen,
-                    'komentar_auditee' => $validated['form']['komentar_auditee'],
-                    'komentar_auditor' => $validated['form']['komentar_auditor'],
-                ]);
-                session()->flash('success', 'Standar Mutu berhasil diperbarui!');
-            } else {
-                // Create new record
-                StandarMutuModel::create([
-                    'tahun_id' => $validated['form']['tahun_id'],
-                    'lembaga_akreditasi_id' => $validated['form']['lembaga_akreditasi_id'],
-                    'standar_nasional_id' => $validated['form']['standar_nasional_id'],
-                    'status' => $validated['form']['status'],
-                    'nilai_mutu' => $validated['form']['nilai_mutu'],
-                    'bukti_dokumen' => $buktiDokumen,
-                    'komentar_auditee' => $validated['form']['komentar_auditee'],
-                    'komentar_auditor' => $validated['form']['komentar_auditor'],
-                ]);
-                session()->flash('success', 'Standar Mutu berhasil ditambahkan!');
+                if ($this->isEditMode) {
+                    // Admin can update all fields
+                    $standar = StandarMutuModel::findOrFail($this->standarMutuId);
+                    $standar->update([
+                        'tahun_id' => $validated['form']['tahun_id'],
+                        'lembaga_akreditasi_id' => $validated['form']['lembaga_akreditasi_id'],
+                        'standar_nasional_id' => $validated['form']['standar_nasional_id'],
+                        'status' => $validated['form']['status'],
+                        'nilai_mutu' => $validated['form']['nilai_mutu'],
+                        'bukti_dokumen' => $buktiDokumen,
+                        'komentar_auditee' => $validated['form']['komentar_auditee'],
+                        'komentar_auditor' => $validated['form']['komentar_auditor'],
+                    ]);
+                    session()->flash('success', 'Standar Mutu berhasil diperbarui!');
+                } else {
+                    // Admin can create new record
+                    StandarMutuModel::create([
+                        'tahun_id' => $validated['form']['tahun_id'],
+                        'lembaga_akreditasi_id' => $validated['form']['lembaga_akreditasi_id'],
+                        'standar_nasional_id' => $validated['form']['standar_nasional_id'],
+                        'status' => $validated['form']['status'],
+                        'nilai_mutu' => $validated['form']['nilai_mutu'],
+                        'bukti_dokumen' => $buktiDokumen,
+                        'komentar_auditee' => $validated['form']['komentar_auditee'],
+                        'komentar_auditor' => $validated['form']['komentar_auditor'],
+                    ]);
+                    session()->flash('success', 'Standar Mutu berhasil ditambahkan!');
+                }
+            } elseif ($this->canUploadAndCommentAuditee()) {
+                // Auditee can only update bukti dokumen and komentar auditee
+                if ($this->isEditMode) {
+                    $standar = StandarMutuModel::findOrFail($this->standarMutuId);
+                    $updateData = [];
+                    
+                    if ($buktiDokumen !== null) {
+                        $updateData['bukti_dokumen'] = $buktiDokumen;
+                    }
+                    if (isset($validated['form']['komentar_auditee'])) {
+                        $updateData['komentar_auditee'] = $validated['form']['komentar_auditee'];
+                    }
+                    
+                    if (!empty($updateData)) {
+                        $standar->update($updateData);
+                        session()->flash('success', 'Bukti dokumen dan komentar auditee berhasil diperbarui!');
+                    }
+                } else {
+                    session()->flash('error', 'Auditee hanya dapat mengedit data yang sudah ada.');
+                    return;
+                }
+            } elseif ($this->canCommentAuditor()) {
+                // Auditor can only update komentar auditor
+                if ($this->isEditMode) {
+                    $standar = StandarMutuModel::findOrFail($this->standarMutuId);
+                    if (isset($validated['form']['komentar_auditor'])) {
+                        $standar->update([
+                            'komentar_auditor' => $validated['form']['komentar_auditor']
+                        ]);
+                        session()->flash('success', 'Komentar auditor berhasil diperbarui!');
+                    }
+                } else {
+                    session()->flash('error', 'Auditor hanya dapat mengedit data yang sudah ada.');
+                    return;
+                }
             }
 
             $this->closeModal();
@@ -373,6 +494,10 @@ class StandarMutu extends Component
 
     public function delete()
     {
+        if (!$this->canDelete()) {
+            abort(403, 'Unauthorized action.');
+        }
+        
         try {
             $standar = StandarMutuModel::findOrFail($this->standarToDelete);
             
@@ -436,6 +561,14 @@ class StandarMutu extends Component
             'showViewModal' => $this->showViewModal,
             'selectedStandar' => $this->selectedStandar,
             'form' => $this->form,
+            // Role-based access control
+            'canFullAccess' => $this->canFullAccess(),
+            'canUploadAndCommentAuditee' => $this->canUploadAndCommentAuditee(),
+            'canCommentAuditor' => $this->canCommentAuditor(),
+            'isReadOnly' => $this->isReadOnly(),
+            'canEdit' => $this->canEdit(),
+            'canDelete' => $this->canDelete(),
+            'canCreate' => $this->canCreate(),
         ])->layout('components.layouts.app', ['title' => __('Daftar Standar Mutu')]);
     }
 }
