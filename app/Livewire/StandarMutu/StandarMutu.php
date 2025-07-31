@@ -52,7 +52,10 @@ class StandarMutu extends Component
     public function mount()
     {
         // Check if user has any of the allowed roles
-        if (!Auth::user()->hasAnyRole(['Admin', 'Auditee', 'Auditor', 'Pimpinan'])) {
+        if (!Auth::user()->hasRole('Admin') && 
+            !Auth::user()->hasRole('Auditee') && 
+            !Auth::user()->hasRole('Auditor') && 
+            !Auth::user()->hasRole('Pimpinan')) {
             abort(403, 'Unauthorized action.');
         }
         $this->resetForm();
