@@ -57,7 +57,7 @@
                             <div class="row g-3 mb-4">
                                 
                                 <!-- Tahun Field -->
-                                @if($canFullAccess)
+                                @if($canFullAccess || ($canUploadAndCommentAuditee && !$isEditMode))
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="tahun_id" class="form-label fw-medium">{{ __('Tahun') }} <span class="text-danger">*</span></label>
@@ -90,7 +90,7 @@
                                 @endif
 
                                 <!-- Lembaga Akreditasi Field -->
-                                @if($canFullAccess)
+                                @if($canFullAccess || ($canUploadAndCommentAuditee && !$isEditMode))
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="lembaga_akreditasi_id" class="form-label fw-medium">{{ __('Lembaga Akreditasi') }} <span class="text-danger">*</span></label>
@@ -123,7 +123,7 @@
                                 @endif
 
                                 <!-- Standar Nasional Field -->
-                                @if($canFullAccess)
+                                @if($canFullAccess || ($canUploadAndCommentAuditee && !$isEditMode))
                                 <div class="col-12">
                                     <div class="mb-3">
                                         <label for="standar_nasional_id" class="form-label fw-medium">{{ __('Standar Nasional') }} <span class="text-danger">*</span></label>
