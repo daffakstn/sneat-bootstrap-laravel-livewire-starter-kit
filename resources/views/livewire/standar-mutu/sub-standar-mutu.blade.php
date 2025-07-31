@@ -17,6 +17,13 @@
                 </div>
             @endif
 
+            @if($isReadOnly)
+                <div class="alert alert-info" role="alert">
+                    <i class="bx bx-info-circle me-2"></i>
+                    <strong>{{ __('Informasi:') }}</strong> {{ __('Anda hanya memiliki akses untuk melihat data sub standar.') }}
+                </div>
+            @endif
+
             <!-- Modal Form -->
             <div class="modal fade" id="subStandarModal" tabindex="-1" wire:ignore.self>
                 <div class="modal-dialog modal-lg">
@@ -316,12 +323,14 @@
                             <i class="bx bx-search position-absolute top-50 end-0 translate-middle-y me-3"></i>
                         </div>
                         <!-- Add Button -->
+                        @if($canCreate)
                         <button class="btn btn-primary" wire:click="create">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-circle me-2" viewBox="0 0 16 16">
                                 <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
                                 <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
                             </svg>{{ __('Tambah Sub Standar') }}
                         </button>
+                        @endif
                     </div>
                 </div>
                 <div class="card-body">
@@ -354,12 +363,16 @@
                                                 <button class="btn btn-sm btn-success" wire:click="showIndikator({{ $subStandar->id }})" title="{{ __('Lihat Indikator') }}">
                                                     <i class="bx bx-show"></i>
                                                 </button>
+                                                @if($canEdit)
                                                 <button class="btn btn-sm btn-primary" wire:click="edit({{ $subStandar->id }})" title="{{ __('Edit') }}">
                                                     <i class="bx bx-edit-alt"></i>
                                                 </button>
+                                                @endif
+                                                @if($canDelete)
                                                 <button class="btn btn-sm btn-danger" wire:click="confirmDelete({{ $subStandar->id }})" title="{{ __('Hapus') }}">
                                                     <i class="bx bx-trash"></i>
                                                 </button>
+                                                @endif
                                             </div>
                                         </td>
                                     </tr>
