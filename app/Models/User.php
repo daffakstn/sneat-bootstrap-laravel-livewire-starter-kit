@@ -57,7 +57,22 @@ class User extends Authenticatable
         return $this->roles()->where('name', $role)->exists();
     }
 
-
+    public function hasAnyRole($roles)
+    {
+        if (is_string($roles)) {
+            return $this->hasRole($roles);
+        }
+        
+        if (is_array($roles)) {
+            foreach ($roles as $role) {
+                if ($this->hasRole($role)) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
 
     public function canLogin()
     {
