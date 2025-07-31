@@ -7,16 +7,22 @@ use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
 new class extends Component {
-    public string $name = '';
-    public string $email = '';
+    public ?string $name = ''; // Gunakan ?string untuk fleksibilitas
+    public ?string $email = '';
 
     /**
      * Mount the component.
      */
     public function mount(): void
     {
-        $this->name = Auth::user()->name;
-        $this->email = Auth::user()->email;
+        $user = Auth::user();
+        if (!$user->pegawai) {
+            \Log::warning('Pegawai tidak ditemukan untuk user ID: ' . $user->id);
+            $this->name = 'Nama Default';
+        } else {
+            $this->name = $user->pegawai->nama ?? 'Nama Default';
+        }
+        $this->email = $user->email ?? '';
     }
 
     /**
@@ -34,19 +40,28 @@ new class extends Component {
                 'lowercase',
                 'email',
                 'max:255',
-                Rule::unique(User::class)->ignore($user->id)
+                Rule::unique(User::class)->ignore($user->id),
             ],
         ]);
 
-        $user->fill($validated);
-
+        // Perbarui email di model User
+        $user->email = $validated['email'];
         if ($user->isDirty('email')) {
             $user->email_verified_at = null;
         }
-
         $user->save();
 
-        $this->dispatch('profile-updated', name: $user->name);
+        // Perbarui nama di model Pegawai
+        if ($user->pegawai) {
+            $user->pegawai->update(['nama' => $validated['name']]);
+        } else {
+            // Jika pegawai belum ada, buat baru (opsional, tergantung kebutuhan)
+            \Log::warning('Pegawai tidak ditemukan saat update untuk user ID: ' . $user->id);
+            // Contoh: Membuat pegawai baru
+            // $user->pegawai()->create(['nama' => $validated['name']]);
+        }
+
+        $this->dispatch('profile-updated', name: $validated['name']);
     }
 
     /**
@@ -58,7 +73,6 @@ new class extends Component {
 
         if ($user->hasVerifiedEmail()) {
             $this->redirectIntended(default: route('dashboard', absolute: false));
-
             return;
         }
 

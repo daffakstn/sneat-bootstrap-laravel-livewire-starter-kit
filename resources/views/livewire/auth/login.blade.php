@@ -10,9 +10,10 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Livewire\Volt\Component;
+use App\Models\User;
 
 new #[Layout('components.layouts.auth')] class extends Component {
-    #[Validate('required|string|email')]
+    #[Validate('required|string')]
     public string $email = '';
 
     #[Validate('required|string')]
@@ -29,7 +30,14 @@ new #[Layout('components.layouts.auth')] class extends Component {
 
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt(['email' => $this->email, 'password' => $this->password], $this->remember)) {
+        // Tentukan field login berdasarkan input (email atau username)
+        $loginField = $this->getLoginField();
+        
+        // Cari user berdasarkan email atau username
+        $user = User::where($loginField, $this->email)->first();
+
+        // Cek apakah user ada dan password benar
+        if (!$user || !password_verify($this->password, $user->password)) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -37,10 +45,30 @@ new #[Layout('components.layouts.auth')] class extends Component {
             ]);
         }
 
+        // Cek status akses user
+        if ($user->status_akses !== 'aktif') {
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'email' => __('Akun Anda telah dinonaktifkan. Silakan hubungi administrator.'),
+            ]);
+        }
+
+        // Login user jika semua validasi berhasil
+        Auth::login($user, $this->remember);
+
         RateLimiter::clear($this->throttleKey());
         Session::regenerate();
 
         $this->redirectIntended(default: route('dashboard', absolute: false), navigate: true);
+    }
+
+    /**
+     * Determine login field based on input format
+     */
+    protected function getLoginField(): string
+    {
+        return filter_var($this->email, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
     }
 
     /**
@@ -73,6 +101,7 @@ new #[Layout('components.layouts.auth')] class extends Component {
     }
 };
 ?>
+
 @section('title', 'Login Page')
 
 @section('page-style')
@@ -81,7 +110,7 @@ new #[Layout('components.layouts.auth')] class extends Component {
 ])
 @endsection
 
-<div>
+<div class="login-container">
     <x-auth-header :title="__('Welcome to :app!', ['app' => config('app.name')])" :description="__('Enter your email and password below to log in')" />
 
     <!-- Session Status -->
@@ -96,13 +125,13 @@ new #[Layout('components.layouts.auth')] class extends Component {
             <label for="email" class="form-label">{{ __('Email or Username') }}</label>
             <input
                 wire:model="email"
-                type="email"
+                type="text"
                 class="form-control @error('email') is-invalid @enderror"
                 id="email"
                 required
                 autofocus
-                autocomplete="email"
-                placeholder="{{ __('Enter your email') }}"
+                autocomplete="username"
+                placeholder="{{ __('Enter your email or username') }}"
             >
             @error('email')
                 <div class="invalid-feedback">{{ $message }}</div>
